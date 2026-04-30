@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Get notified on Telegram when your Claude Code rate limit resets.</strong>
+  <strong>Telegram Bot that sends you notification when your Claude Code rate limit resets.</strong>
 </p>
 
 <p align="center">
