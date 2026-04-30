@@ -1,6 +1,6 @@
 #!/bin/bash
 # LimitClock — Quick install script
-# Usage: curl -fsSL https://raw.githubusercontent.com/sadrikov49/limitclock/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/myrosama/LimitClock/main/install.sh | bash
 
 set -e
 
@@ -31,7 +31,7 @@ if [ -d "$INSTALL_DIR" ]; then
   cd "$INSTALL_DIR" && git pull --ff-only
 else
   echo "Installing to $INSTALL_DIR..."
-  git clone https://github.com/sadrikov49/limitclock.git "$INSTALL_DIR"
+  git clone https://github.com/myrosama/LimitClock.git "$INSTALL_DIR"
   cd "$INSTALL_DIR"
 fi
 

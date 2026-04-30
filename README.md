@@ -40,7 +40,7 @@ Claude Code has a **rolling 5-hour rate limit window**. When you hit it, you're 
 
 ```bash
 # Clone
-git clone https://github.com/sadrikov49/limitclock.git
+git clone https://github.com/myrosama/LimitClock.git
 cd limitclock
 
 # Install deps
@@ -56,7 +56,7 @@ npm start
 
 Or use the one-liner:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sadrikov49/limitclock/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/myrosama/LimitClock/main/install.sh | bash
 ```
 
 ## Commands
