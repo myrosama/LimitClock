@@ -1,0 +1,10 @@
+name = "limitclock-worker"
+main = "src/index.js"
+compatibility_date = "2024-04-30"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[kv_namespaces]]
+binding = "LIMITCLOCK_KV"
+id = "7e337247873146dba96f567ebaac0b40"

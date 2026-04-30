@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/.limitclock
-ExecStart=/usr/bin/node %h/.limitclock/index.js
+WorkingDirectory=/home/sadrikov49/Desktop/LimitClock
+ExecStart=/usr/bin/node /home/sadrikov49/Desktop/LimitClock/index.js
 Restart=on-failure
 RestartSec=10
 Environment=NODE_ENV=production

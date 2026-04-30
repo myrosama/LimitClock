@@ -28,6 +28,8 @@ let lastNotifyTime = 0;
 let scheduledResetTimer = null;
 let wasLimited = false; // track if user was previously rate-limited
 let lastKnownUsages = []; // cached parsed usages
+let explicitLimitStr = null; // string from Claude like "6:10pm (Asia/Tashkent)"
+let explicitLimitDate = null; // parsed Date object
 
 // ── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -44,7 +46,6 @@ function parseAllUsages() {
     if (!dir.isDirectory()) continue;
     const projectPath = path.join(PROJECTS_DIR, dir.name);
 
-    // Find all .jsonl files (skip subagents/)
     const files = findJsonlFiles(projectPath);
     for (const file of files) {
       if (file.includes("subagents")) continue;
@@ -54,6 +55,23 @@ function parseAllUsages() {
           if (!line.trim()) continue;
           try {
             const entry = JSON.parse(line);
+            
+            // Check for explicit rate limit hit
+            if (entry.error === "rate_limit" && entry.isApiErrorMessage && entry.message?.content) {
+              const text = entry.message.content.find(c => c.type === "text")?.text;
+              if (text && text.includes("resets ")) {
+                const match = text.match(/resets\s+(.*?)$/);
+                if (match) {
+                  const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
+                  // Only care about limits from the last 24h
+                  if (ts >= Date.now() - 24 * 3600_000) {
+                    explicitLimitStr = match[1].trim();
+                    explicitLimitDate = parseLimitString(explicitLimitStr);
+                  }
+                }
+              }
+            }
+
             if (entry.type === "assistant" && entry.message?.usage) {
               const u = entry.message.usage;
               const ts = entry.timestamp
@@ -77,7 +95,33 @@ function parseAllUsages() {
   }
 
   usages.sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Clear stale limits
+  if (explicitLimitDate && explicitLimitDate.getTime() < Date.now()) {
+    explicitLimitStr = null;
+    explicitLimitDate = null;
+  }
+  
   return usages;
+}
+
+function parseLimitString(str) {
+  // str e.g. "6:10pm (Asia/Tashkent)"
+  const m = str.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+  if (!m) return null;
+  let [_, h, min, ampm] = m;
+  h = parseInt(h);
+  min = parseInt(min);
+  if (ampm && ampm.toLowerCase() === "pm" && h < 12) h += 12;
+  if (ampm && ampm.toLowerCase() === "am" && h === 12) h = 0;
+  
+  const now = new Date();
+  const resetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, 0);
+  
+  if (resetDate.getTime() < now.getTime() - 3600_000) {
+    resetDate.setDate(resetDate.getDate() + 1);
+  }
+  return resetDate;
 }
 
 function findJsonlFiles(dir) {
@@ -128,6 +172,9 @@ function nextResetTime(windowUsages) {
 
 /** Minutes until the oldest tokens free up */
 function minutesUntilReset(windowUsages) {
+  if (explicitLimitDate) {
+    return Math.max(0, (explicitLimitDate.getTime() - Date.now()) / 60_000);
+  }
   const reset = nextResetTime(windowUsages);
   if (!reset) return null;
   const diff = (reset - Date.now()) / 60_000;
@@ -262,7 +309,11 @@ function msgStatus(stats) {
   ];
 
   if (mins !== null && mins > 0) {
-    lines.push(`⏳ Next token release: *${fmtTime(mins)}*`);
+    if (explicitLimitStr) {
+      lines.push(`⏳ Next token release: *${explicitLimitStr}* (in ${fmtTime(mins)})`);
+    } else {
+      lines.push(`⏳ Next token release: *${fmtTime(mins)}*`);
+    }
   } else {
     lines.push(`🟢 Window is clear — no active limits`);
   }
@@ -284,10 +335,14 @@ function msgStats(stats) {
 
   const wu = stats.windowUsages;
   const mins = minutesUntilReset(wu);
-  const rateLine =
-    mins !== null && mins > 0
-      ? `⏳ Next release: *${fmtTime(mins)}*`
-      : `🟢 No active rate limit`;
+  let rateLine;
+  if (mins !== null && mins > 0) {
+    rateLine = explicitLimitStr 
+      ? `⏳ Next release: *${explicitLimitStr}*`
+      : `⏳ Next release: *${fmtTime(mins)}*`;
+  } else {
+    rateLine = `🟢 No active rate limit`;
+  }
 
   return [
     `📊 *LimitClock Stats*`,
@@ -366,16 +421,16 @@ bot.onText(/\/when/, (msg) => {
   if (mins === null || mins <= 0) {
     bot.sendMessage(msg.chat.id, `🟢 Window is clear! No tokens pending reset.`);
   } else {
-    const reset = nextResetTime(wu);
-    const tokensToFree = billableTokens(wu[0]);
+    const reset = explicitLimitDate || nextResetTime(wu);
+    const tokensToFree = explicitLimitStr ? "Full reset" : `~${fmtNum(billableTokens(wu[0]))}`;
     bot.sendMessage(
       msg.chat.id,
       [
         `⏰ *Next Token Release*`,
         ``,
         `⏳ In: *${fmtTime(mins)}*`,
-        `🕐 At: \`${reset.toISOString().slice(11, 16)} UTC\``,
-        `🔓 Tokens: ~${fmtNum(tokensToFree)}`,
+        `🕐 At: \`${explicitLimitStr || reset.toISOString().slice(11, 16) + ' UTC'}\``,
+        `🔓 Tokens: ${tokensToFree}`,
       ].join("\n"),
       { parse_mode: "Markdown" }
     );

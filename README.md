@@ -59,6 +59,15 @@ Or use the one-liner:
 curl -fsSL https://raw.githubusercontent.com/myrosama/LimitClock/main/install.sh | bash
 ```
 
+### 4. Deploy to Cloudflare (Optional but recommended)
+If you want the bot to message you even when your laptop is completely powered off, deploy the Cloudflare Worker!
+```bash
+cd worker
+npm install
+npx wrangler deploy
+```
+*(Make sure to update `sync.js` with your deployed worker URL!)*
+
 ## Commands
 
 | Command | Description |
@@ -113,21 +122,21 @@ Go build something amazing! 🚀
 
 ## How It Works
 
+LimitClock offers two modes: **Local Mode** and **Cloud Mode**.
+
+### Cloud Mode (Recommended)
+Because Claude Code stores data locally on your laptop, a normal cloud server can't read it. Cloud Mode splits the work:
+1. You run `node sync.js` on your laptop after coding (or add an alias like `alias cl="claude && node sync.js"`).
+2. The script parses your token usage and finds your exact limit reset time.
+3. It securely pushes this timer to a free **Cloudflare Worker**.
+4. You can turn your laptop off! The Cloudflare Worker holds the timer, sends you the Telegram notification at exactly the right minute, and replies to all your `/status` and `/stats` commands natively via Webhooks!
+
+### Local Mode (Always On)
 ```
-~/.claude/projects/**/*.jsonl  ──→  LimitClock  ──→  Telegram Bot
-       (session data)               (parser +         (notifications)
-                                     watcher)
+~/.claude/projects/**/*.jsonl  ──→  LimitClock (systemd)  ──→  Telegram Bot
+       (session data)               (parser + watcher)          (notifications)
 ```
-
-1. **Watches** `~/.claude/projects/` for JSONL session files
-2. **Parses** token usage entries (input, output, cache) with timestamps
-3. **Tracks** the rolling 5-hour window
-4. **Schedules** a notification for when the oldest tokens expire
-5. **Sends** a Telegram message the instant your capacity frees up
-
-The bot also responds to commands so you can check your status on-demand from anywhere.
-
-## Run as Service
+If you prefer not to use Cloudflare, you can just run LimitClock in the background on your laptop. It watches your files and schedules the Telegram pings locally.
 
 ### Option A: systemd (Linux)
 
