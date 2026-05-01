@@ -10,13 +10,14 @@ const WINDOW_HOURS = 5;
 
 let explicitLimitStr = null;
 let explicitLimitDate = null;
+let latestExplicitLimitTs = 0;
 
 function parseLimitString(str) {
-  const m = str.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+  const m = str.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
   if (!m) return null;
-  let [_, h, min, ampm] = m;
-  h = parseInt(h);
-  min = parseInt(min);
+  let [_, h, minStr, ampm] = m;
+  h = parseInt(h, 10);
+  let min = minStr ? parseInt(minStr, 10) : 0;
   if (ampm && ampm.toLowerCase() === "pm" && h < 12) h += 12;
   if (ampm && ampm.toLowerCase() === "am" && h === 12) h = 0;
   
@@ -82,7 +83,8 @@ function parseAllUsages() {
                 const match = text.match(/resets\s+(.*?)$/);
                 if (match) {
                   const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
-                  if (ts >= Date.now() - 24 * 3600_000) {
+                  if (ts >= Date.now() - 24 * 3600_000 && ts > latestExplicitLimitTs) {
+                    latestExplicitLimitTs = ts;
                     explicitLimitStr = match[1].trim();
                     explicitLimitDate = parseLimitString(explicitLimitStr);
                   }

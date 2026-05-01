@@ -30,6 +30,7 @@ let wasLimited = false; // track if user was previously rate-limited
 let lastKnownUsages = []; // cached parsed usages
 let explicitLimitStr = null; // string from Claude like "6:10pm (Asia/Tashkent)"
 let explicitLimitDate = null; // parsed Date object
+let latestExplicitLimitTs = 0;
 
 // ── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,8 @@ function parseAllUsages() {
                 if (match) {
                   const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
                   // Only care about limits from the last 24h
-                  if (ts >= Date.now() - 24 * 3600_000) {
+                  if (ts >= Date.now() - 24 * 3600_000 && ts > latestExplicitLimitTs) {
+                    latestExplicitLimitTs = ts;
                     explicitLimitStr = match[1].trim();
                     explicitLimitDate = parseLimitString(explicitLimitStr);
                   }
@@ -106,12 +108,12 @@ function parseAllUsages() {
 }
 
 function parseLimitString(str) {
-  // str e.g. "6:10pm (Asia/Tashkent)"
-  const m = str.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+  // str e.g. "6:10pm (Asia/Tashkent)" or "1pm"
+  const m = str.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
   if (!m) return null;
-  let [_, h, min, ampm] = m;
-  h = parseInt(h);
-  min = parseInt(min);
+  let [_, h, minStr, ampm] = m;
+  h = parseInt(h, 10);
+  let min = minStr ? parseInt(minStr, 10) : 0;
   if (ampm && ampm.toLowerCase() === "pm" && h < 12) h += 12;
   if (ampm && ampm.toLowerCase() === "am" && h === 12) h = 0;
   
